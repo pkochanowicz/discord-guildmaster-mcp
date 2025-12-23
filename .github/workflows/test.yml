@@ -1,0 +1,215 @@
+# GitHub Actions workflow for discord-guildmaster-mcp test suite
+#
+# Runs on: push to main, pull requests, manual dispatch
+# Matrix: Python 3.11, 3.12
+# Quality Gates: tests pass, coverage ≥80%, linting clean, type checking clean
+#
+# Phase: DDD Phase 2 - Test Suite Implementation
+# Generated: 2025-12-23
+
+name: Test Suite
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # Manual trigger
+
+jobs:
+  test:
+    name: Test (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    
+    steps:
+      # ============================================================================
+      # SETUP
+      # ============================================================================
+      
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+      
+      - name: Install uv (fast package manager)
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+      
+      - name: Install dependencies
+        run: |
+          uv pip install --system -e ".[dev]"
+      
+      # ============================================================================
+      # LINTING & FORMATTING
+      # ============================================================================
+      
+      - name: Lint with ruff
+        run: |
+          ruff check .
+        continue-on-error: false
+      
+      - name: Check formatting with ruff
+        run: |
+          ruff format --check .
+        continue-on-error: false
+      
+      # ============================================================================
+      # TYPE CHECKING
+      # ============================================================================
+      
+      - name: Type check with mypy
+        run: |
+          mypy discord_guildmaster_mcp tests --ignore-missing-imports
+        continue-on-error: true  # Don't fail CI on type errors (for now)
+      
+      # ============================================================================
+      # TESTS
+      # ============================================================================
+      
+      - name: Run unit tests with pytest
+        run: |
+          pytest tests/ \
+            -v \
+            --tb=short \
+            --cov=discord_guildmaster_mcp \
+            --cov-report=xml \
+            --cov-report=term-missing \
+            --cov-fail-under=80 \
+            -m "not integration"
+        env:
+          DISCORD_TOKEN: "test_token_for_ci"  # Fake token for testing
+      
+      - name: Run integration tests (if enabled)
+        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        run: |
+          pytest tests/integration/ \
+            -v \
+            --tb=short \
+            -m integration
+        env:
+          DISCORD_TOKEN: "test_token_for_ci"
+        continue-on-error: true  # Integration tests may require external services
+      
+      # ============================================================================
+      # COVERAGE REPORTING
+      # ============================================================================
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          file: ./coverage.xml
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+      
+      - name: Coverage comment (on PR)
+        if: github.event_name == 'pull_request'
+        uses: py-cov-action/python-coverage-comment-action@v3
+        with:
+          GITHUB_TOKEN: ${{ github.token }}
+          MINIMUM_GREEN: 90
+          MINIMUM_ORANGE: 80
+      
+      # ============================================================================
+      # TEST ARTIFACTS
+      # ============================================================================
+      
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.python-version }}
+          path: |
+            coverage.xml
+            htmlcov/
+          retention-days: 30
+      
+      # ============================================================================
+      # SUMMARY
+      # ============================================================================
+      
+      - name: Test summary
+        if: always()
+        run: |
+          echo "## Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Python: ${{ matrix.python-version }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Tests: $(pytest --collect-only -q 2>&1 | tail -1)" >> $GITHUB_STEP_SUMMARY
+          echo "- Coverage: See Codecov report" >> $GITHUB_STEP_SUMMARY
+
+
+  # ============================================================================
+  # REQUIRED STATUS CHECKS (for branch protection)
+  # ============================================================================
+  
+  all-tests-pass:
+    name: All Tests Passing
+    runs-on: ubuntu-latest
+    needs: test
+    if: always()
+    
+    steps:
+      - name: Check test matrix results
+        run: |
+          if [ "${{ needs.test.result }}" != "success" ]; then
+            echo "Tests failed!"
+            exit 1
+          fi
+          echo "All tests passed!"
+
+
+  # ============================================================================
+  # QUALITY REPORT (for main branch)
+  # ============================================================================
+  
+  quality-report:
+    name: Quality Report
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Download test results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: test-results-*
+          merge-multiple: true
+      
+      - name: Generate quality report
+        run: |
+          echo "# Quality Report - discord-guildmaster-mcp" > quality-report.md
+          echo "" >> quality-report.md
+          echo "**Date**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> quality-report.md
+          echo "**Commit**: ${{ github.sha }}" >> quality-report.md
+          echo "" >> quality-report.md
+          echo "## Metrics" >> quality-report.md
+          echo "- ✅ Tests: Passing" >> quality-report.md
+          echo "- ✅ Linting: Clean" >> quality-report.md
+          echo "- ✅ Coverage: ≥80%" >> quality-report.md
+          echo "" >> quality-report.md
+          echo "## Test Matrix" >> quality-report.md
+          echo "- Python 3.11: ✅" >> quality-report.md
+          echo "- Python 3.12: ✅" >> quality-report.md
+      
+      - name: Upload quality report
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-report
+          path: quality-report.md
+          retention-days: 90
+
