@@ -1,0 +1,232 @@
+# Multi-Agent Guild Manager Configuration
+# Generated: 2025-12-23 | DDD Phase 1: Documentation Genesis
+#
+# This configuration defines specialized agents for Discord guild management
+# Each agent has access to specific tools based on their responsibilities
+
+name: "Discord Guild Manager Orchestrator"
+version: "1.0.0"
+description: "Multi-agent orchestration for comprehensive Discord guild management"
+
+# === AGENT DEFINITIONS ===
+
+agents:
+  # Guild Administration Agent
+  - name: guild_admin
+    description: "Handles guild information, member queries, and role operations"
+    tools:
+      - get_guild_info
+      - get_audit_log
+      - list_members
+      - get_member
+      - search_members
+      - get_user_id_by_name
+      - list_roles
+      - assign_role
+      - remove_role
+    max_context_tokens: 4000
+    priority: high
+
+  # Channel Architect Agent
+  - name: channel_manager
+    description: "Manages channel structure, categories, and organization"
+    tools:
+      - list_channels
+      - create_channel
+      - delete_channel
+      - create_category
+    max_context_tokens: 2000
+    priority: medium
+
+  # Content Publisher Agent
+  - name: content_publisher
+    description: "Creates and distributes content across channels"
+    tools:
+      - send_message
+      - read_messages
+      - delete_message
+      - add_reaction
+      - send_dm
+      - create_webhook
+      - send_webhook_message
+      - delete_webhook
+    max_context_tokens: 3000
+    priority: high
+
+  # Forum & Thread Manager Agent
+  - name: forum_manager
+    description: "Manages forums, threads, and organized discussions"
+    tools:
+      - create_forum_post
+      - reply_to_forum
+      - get_forum_post
+      - create_thread
+      - archive_thread
+    max_context_tokens: 2500
+    priority: low
+
+  # Visual Designer Agent
+  - name: visual_designer
+    description: "Generates AI images using ComfyUI for visual content"
+    tools:
+      - generate_image
+      - list_workflows
+      - get_generation_status
+      - get_image
+    max_context_tokens: 3000
+    priority: medium
+    dependencies:
+      - comfyui_server
+
+  # Diagnostic Agent
+  - name: diagnostics
+    description: "Tests connections and troubleshoots issues"
+    tools:
+      - test_connection
+      - test_comfyui
+      - list_available_tools
+    max_context_tokens: 1500
+    priority: low
+
+# === ORCHESTRATION STRATEGY ===
+
+orchestration:
+  # How agents coordinate
+  strategy: "dynamic"  # Options: sequential, parallel, dynamic
+  
+  # Context sharing between agents
+  context_sharing:
+    guild_id: "shared"  # All agents see same guild_id
+    channel_id: "agent-specific"  # Each agent can target different channels
+    user_context: "shared"  # User requests available to all agents
+    
+  # Error handling
+  error_handling:
+    mode: "graceful_degradation"
+    retry_attempts: 3
+    fallback_agents:
+      visual_designer: null  # No fallback (ComfyUI optional)
+      content_publisher: "guild_admin"  # Admin can handle basic messaging
+      
+  # Logging and monitoring
+  logging:
+    level: "INFO"
+    format: "json"
+    include_agent_name: true
+    include_tool_calls: true
+
+# === WORKFLOW EXAMPLES ===
+
+workflows:
+  # Weekly Officer Briefing
+  - name: "weekly_briefing"
+    description: "Generate comprehensive officer briefing"
+    trigger: "schedule:monday:09:00"
+    agents:
+      - guild_admin  # Collect guild metrics
+      - content_publisher  # Analyze activity
+      - content_publisher  # Generate briefing
+    output_channel: "officer-chat"
+    
+  # Recruitment Campaign
+  - name: "recruitment_campaign"
+    description: "Create and deploy recruitment content"
+    trigger: "manual"
+    agents:
+      - guild_admin  # Analyze guild composition
+      - visual_designer  # Generate recruitment poster
+      - content_publisher  # Deploy to multiple channels
+    output_channels:
+      - "recruitment"
+      - "announcements"
+      
+  # New Member Onboarding
+  - name: "member_onboarding"
+    description: "Welcome new members with personalized experience"
+    trigger: "event:member_join"
+    agents:
+      - guild_admin  # Assign roles
+      - visual_designer  # Generate character portrait (optional)
+      - content_publisher  # Send welcome DM and announcement
+    output_channel: "welcome"
+
+# === AGENT PERMISSIONS ===
+
+permissions:
+  # Which agents can perform destructive operations
+  destructive_operations:
+    allowed_agents:
+      - guild_admin
+      - channel_manager
+    require_confirmation: true
+    
+  # Rate limiting per agent
+  rate_limits:
+    guild_admin:
+      calls_per_minute: 30
+    content_publisher:
+      calls_per_minute: 20
+    visual_designer:
+      calls_per_minute: 5  # ComfyUI is slow
+      
+  # Agent priority during resource contention
+  priority_order:
+    - guild_admin
+    - content_publisher
+    - channel_manager
+    - visual_designer
+    - forum_manager
+    - diagnostics
+
+# === DEPENDENCIES ===
+
+dependencies:
+  # External services
+  services:
+    discord_api:
+      required: true
+      health_check: "test_connection"
+      
+    comfyui_server:
+      required: false
+      health_check: "test_comfyui"
+      fallback_mode: "disable_visual_designer"
+      
+  # Environment configuration
+  environment:
+    DISCORD_TOKEN: "required"
+    DISCORD_DEFAULT_GUILD_ID: "required"
+    COMFYUI_ENABLED: "optional"
+    LOG_LEVEL: "optional:INFO"
+
+# === MONITORING ===
+
+monitoring:
+  # Metrics to track
+  metrics:
+    - agent_tool_calls
+    - agent_response_times
+    - agent_error_rates
+    - workflow_completion_times
+    
+  # Alerting
+  alerts:
+    - condition: "error_rate > 0.1"
+      action: "log_warning"
+      notify: "admin"
+      
+    - condition: "visual_designer_timeout > 600s"
+      action: "disable_comfyui"
+      notify: "admin"
+
+# === NOTES ===
+
+# Usage:
+# 1. Configure .env with DISCORD_TOKEN and DISCORD_DEFAULT_GUILD_ID
+# 2. Start orchestrator: python -m orchestrator --config multi-agent-guild-manager.yaml
+# 3. Monitor logs for agent coordination
+#
+# Documentation:
+# - docs/MULTI_AGENT_WORKFLOWS.md - Orchestration patterns
+# - docs/TOOLS_REFERENCE.md - Complete tool documentation
+# - docs/CONFIGURATION.md - Environment configuration
