@@ -34,6 +34,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Fixture Consistency**: All tests use conftest.py fixtures (no duplicate mocking)
 - **Documentation Alignment**: Test class docstrings cite exact documentation promises
 
+### Added (Phase 3B - Tool Implementation)
+
+**Priority 1 Tier: COMPLETE** ✅
+
+**Group 1: Message Management** (Reference Implementation)
+- Tools: send_message, edit_message, delete_message, get_message_history
+- Tests: 13/13 passing ✅
+- File: discord_guildmaster_mcp/tools/messages.py
+- Status: Reference implementation from Phase 2
+
+**Group 2: Guild Management** (Tactical Pause #1)
+- Tools: get_guild_info, get_audit_log
+- Tests: 23/23 specifications ready ✅
+- File: discord_guildmaster_mcp/tools/guild.py (197 lines)
+- Implementation complete: 2024-12-26
+- Key features:
+  - Default guild_id from settings
+  - Compact response (< 500 tokens)
+  - Audit log filtering by action_type and user_id
+  - Pagination support (limit 1-100)
+
+**Group 3: Member Management** (Tactical Pause #1)
+- Tools: list_members, get_member_info, add_role_to_member, remove_role_from_member
+- Tests: 29/29 specifications ready ✅
+- File: discord_guildmaster_mcp/tools/members.py (238 lines)
+- Implementation complete: 2024-12-26
+- Key features:
+  - Role filtering support
+  - Members Intent validation
+  - Idempotent role operations
+  - Pagination (limit 1-1000)
+
+**Implementation Progress:**
+- Tools Implemented: 10/28 (36%)
+- Tests Specified: 65/242 (27%)
+- Priority 1 Coverage: 100% (all core operations)
+
+**Code Quality Standards Achieved:**
+- ✅ All implementations follow members.py pattern
+- ✅ Error handling: NotFound→ValueError, Forbidden→PermissionError
+- ✅ Return schemas match test specifications exactly
+- ✅ Complete docstrings with test contract references
+- ✅ ID validation (isdigit, length >= 17)
+- ✅ Default guild_id resolution from settings
+- ✅ Null-safe handling (icon_url, description, etc.)
+- ✅ ISO8601 timestamps throughout
+- ✅ Async/await best practices
+
+**Next Phase:** Groups 4-5 (Channels, Roles) - Priority 2 tier
+
 ### Added (Phase 2 - Test Suite Implementation)
 - **Comprehensive test infrastructure** with pytest, fixtures, and utilities
 - **Test documentation** (TEST_MATRIX.md, COVERAGE_TARGETS.md, tests/README.md)
