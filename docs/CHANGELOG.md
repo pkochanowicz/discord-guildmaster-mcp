@@ -66,10 +66,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Idempotent role operations
   - Pagination (limit 1-1000)
 
+**Priority 2 Tier: COMPLETE** ✅
+
+**Group 4: Channel Management** (Tactical Pause #2)
+- Tools: list_channels, create_channel, delete_channel, create_category
+- Tests: 37/37 specifications ready ✅
+- File: discord_guildmaster_mcp/tools/channels.py (373 lines)
+- Implementation complete: 2024-12-26
+- Key features:
+  - Channel type mapping (text, voice, category, forum, announcement, stage)
+  - Parent category support
+  - Type-specific settings (user_limit, topic, slowmode, etc.)
+  - Safety check: prevent category deletion with children
+  - Categorized channel listing
+
+**Group 5: Role Management** (Tactical Pause #2)
+- Tools: list_roles, assign_role, remove_role
+- Tests: 31/31 specifications ready ✅
+- File: discord_guildmaster_mcp/tools/roles.py (308 lines)
+- Implementation complete: 2024-12-26
+- Key features:
+  - Hierarchy-based ordering (by position)
+  - Role hierarchy validation (bot can't assign/remove roles above its own)
+  - Idempotent operations (assign/remove)
+  - @everyone role protection
+  - Full role metadata (color, permissions, managed, mentionable)
+
 **Implementation Progress:**
-- Tools Implemented: 10/28 (36%)
-- Tests Specified: 65/242 (27%)
+- Tools Implemented: 17/28 (61%)
+- Tests Specified: 133/242 (55%)
 - Priority 1 Coverage: 100% (all core operations)
+- Priority 2 Coverage: 100% (channels + roles)
 
 **Code Quality Standards Achieved:**
 - ✅ All implementations follow members.py pattern
@@ -81,8 +108,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ✅ Null-safe handling (icon_url, description, etc.)
 - ✅ ISO8601 timestamps throughout
 - ✅ Async/await best practices
+- ✅ Hierarchy validation (roles, categories)
+- ✅ Idempotent operations (role assignment/removal)
+- ✅ Safety checks (category deletion, @everyone protection)
 
-**Next Phase:** Groups 4-5 (Channels, Roles) - Priority 2 tier
+**Next Phase:** Groups 6-9 (Webhooks, Forums, Threads, ComfyUI/Utility) - Priority 3 tier
 
 ### Added (Phase 2 - Test Suite Implementation)
 - **Comprehensive test infrastructure** with pytest, fixtures, and utilities
