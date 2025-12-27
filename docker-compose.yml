@@ -1,0 +1,115 @@
+# Discord Guildmaster MCP - Docker Compose Configuration
+# For local development and testing
+
+version: '3.8'
+
+services:
+  # =========================================================================
+  # MCP Server - Main Service
+  # =========================================================================
+  guildmaster:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: discord-guildmaster-mcp
+
+    # Environment configuration
+    env_file:
+      - .env.integration  # Use integration environment by default
+
+    # Alternative: Inline environment variables
+    # environment:
+    #   DISCORD_TOKEN: ${DISCORD_TOKEN}
+    #   DISCORD_DEFAULT_GUILD_ID: ${DISCORD_DEFAULT_GUILD_ID}
+    #   GUILDMASTER_THEME: generic
+    #   LOG_LEVEL: INFO
+
+    # Volumes for development
+    volumes:
+      # Mount workflows directory for live updates
+      - ./workflows:/app/workflows:ro
+
+      # Optional: Mount source code for development
+      # - ./discord_guildmaster_mcp:/app/discord_guildmaster_mcp:ro
+
+    # Restart policy
+    restart: unless-stopped
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "python", "-c", "import discord_guildmaster_mcp; print('ok')"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # Network
+    networks:
+      - guildmaster-network
+
+  # =========================================================================
+  # ComfyUI - Optional AI Image Generation
+  # =========================================================================
+  comfyui:
+    image: comfyanonymous/comfyui:latest
+    container_name: discord-guildmaster-comfyui
+
+    # Only start with --profile gpu flag
+    profiles:
+      - gpu
+
+    # Port mapping for HTTP access
+    ports:
+      - "8188:8188"
+
+    # Volumes for models and outputs
+    volumes:
+      # Model storage
+      - comfyui-models:/app/models
+
+      # Output directory
+      - ./outputs:/app/output
+
+      # Workflow files
+      - ./workflows:/app/workflows:ro
+
+    # GPU configuration (NVIDIA)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+    # Environment
+    environment:
+      - COMMANDLINE_ARGS=--listen 0.0.0.0 --port 8188
+
+    # Restart policy
+    restart: unless-stopped
+
+    # Network
+    networks:
+      - guildmaster-network
+
+# ===========================================================================
+# NETWORKS
+# ===========================================================================
+networks:
+  guildmaster-network:
+    driver: bridge
+
+# ===========================================================================
+# VOLUMES
+# ===========================================================================
+volumes:
+  comfyui-models:
+    driver: local

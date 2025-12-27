@@ -1,0 +1,152 @@
+# Discord Guildmaster MCP - Fly.io Configuration
+# Deploy with: fly deploy
+
+# ===========================================================================
+# APPLICATION
+# ===========================================================================
+app = "discord-guildmaster-mcp"
+primary_region = "iad"  # Washington, D.C. - Change to your preferred region
+
+# Fly.io automatically assigns
+kill_signal = "SIGINT"
+kill_timeout = "5s"
+
+# ===========================================================================
+# BUILD
+# ===========================================================================
+[build]
+  dockerfile = "Dockerfile"
+
+# ===========================================================================
+# ENVIRONMENT VARIABLES (Non-Secret)
+# ===========================================================================
+[env]
+  # Theme configuration
+  GUILDMASTER_THEME = "generic"
+
+  # Logging
+  LOG_LEVEL = "INFO"
+
+  # MCP configuration
+  MCP_TRANSPORT = "stdio"
+
+  # Performance
+  DEFAULT_PAGE_SIZE = "50"
+  MAX_MESSAGE_HISTORY = "100"
+  RESPONSE_TRUNCATION = "true"
+
+  # ComfyUI (disabled by default in production)
+  COMFYUI_ENABLED = "false"
+
+# ===========================================================================
+# SECRETS (Set with: fly secrets set NAME=value)
+# ===========================================================================
+# DISCORD_TOKEN - Required, set with: fly secrets set DISCORD_TOKEN=your_token
+# DISCORD_DEFAULT_GUILD_ID - Optional: fly secrets set DISCORD_DEFAULT_GUILD_ID=123456789
+# DISCORD_DEFAULT_CHANNEL_ID - Optional: fly secrets set DISCORD_DEFAULT_CHANNEL_ID=987654321
+
+# ===========================================================================
+# HTTP SERVICE (for health checks and optional HTTP mode)
+# ===========================================================================
+[[services]]
+  protocol = "tcp"
+  internal_port = 8080
+
+  # Force HTTPS
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+    force_https = true
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+  # Health check endpoint
+  [[services.http_checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/health"
+    protocol = "http"
+
+  # TCP health check fallback
+  [[services.tcp_checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+
+# ===========================================================================
+# COMPUTE RESOURCES
+# ===========================================================================
+[vm]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 256  # Minimal for MCP server, increase if needed
+
+# ===========================================================================
+# DEPLOYMENT STRATEGY
+# ===========================================================================
+[deploy]
+  strategy = "rolling"  # Zero-downtime deployments
+
+# ===========================================================================
+# METRICS (Optional)
+# ===========================================================================
+[metrics]
+  port = 9091
+  path = "/metrics"
+
+# ===========================================================================
+# PROCESS MANAGEMENT
+# ===========================================================================
+[processes]
+  app = "python -m discord_guildmaster_mcp.server"
+
+# ===========================================================================
+# REGIONS & SCALING (Optional)
+# ===========================================================================
+# Uncomment to enable multi-region deployment
+# [regions]
+#   iad = { cpu_kind = "shared", cpus = 1, memory_mb = 256 }
+#   lhr = { cpu_kind = "shared", cpus = 1, memory_mb = 256 }
+
+# ===========================================================================
+# NOTES
+# ===========================================================================
+# Deployment Commands:
+#
+# 1. Install Fly CLI:
+#    curl -L https://fly.io/install.sh | sh
+#
+# 2. Login to Fly.io:
+#    fly auth login
+#
+# 3. Create app (first time only):
+#    fly launch --no-deploy
+#
+# 4. Set secrets:
+#    fly secrets set DISCORD_TOKEN=your_bot_token_here
+#    fly secrets set DISCORD_DEFAULT_GUILD_ID=your_guild_id (optional)
+#
+# 5. Deploy:
+#    fly deploy
+#
+# 6. Check status:
+#    fly status
+#    fly logs
+#
+# 7. Access app:
+#    fly ssh console
+#
+# 8. Scale resources if needed:
+#    fly scale vm shared-cpu-1x --memory 512
+#
+# Regions available:
+# iad - Ashburn, Virginia (US)
+# ord - Chicago, Illinois (US)
+# lhr - London, United Kingdom (Europe)
+# nrt - Tokyo, Japan (Asia)
+# syd - Sydney, Australia (Oceania)
+# View all: fly platform regions

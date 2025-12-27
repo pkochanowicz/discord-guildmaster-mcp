@@ -1,0 +1,284 @@
+# Discord Guildmaster MCP - Git Ignore Rules
+
+# ============================================================================
+# SECRETS & ENVIRONMENT - NEVER COMMIT THESE
+# ============================================================================
+
+# Environment files with secrets
+.env
+.env.local
+.env.production
+.env.integration
+.env.development
+
+# Keep template files
+!.env.example
+!.env.test
+
+# Backup environment files
+*.env.backup
+*.env.bak
+
+# ============================================================================
+# PYTHON
+# ============================================================================
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Translations
+*.mo
+*.pot
+
+# Django stuff:
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Flask stuff:
+instance/
+.webassets-cache
+
+# Scrapy stuff:
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+.pybuilder/
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# pipenv
+Pipfile.lock
+
+# poetry
+poetry.lock
+
+# pdm
+.pdm.toml
+
+# PEP 582
+__pypackages__/
+
+# Celery stuff
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# pytype static type analyzer
+.pytype/
+
+# Cython debug symbols
+cython_debug/
+
+# ============================================================================
+# DOCKER
+# ============================================================================
+
+# Docker volumes
+docker-volumes/
+.docker/
+
+# Docker Compose override files
+docker-compose.override.yml
+docker-compose.local.yml
+
+# ============================================================================
+# COMFYUI ARTIFACTS
+# ============================================================================
+
+# Generated images and outputs
+outputs/
+output/
+temp/
+tmp/
+
+# ComfyUI models (large files)
+models/
+checkpoints/
+loras/
+embeddings/
+
+# ComfyUI cache
+comfy_cache/
+
+# ============================================================================
+# MCP SERVER ARTIFACTS
+# ============================================================================
+
+# MCP server logs
+*.log
+logs/
+
+# MCP cache
+.mcp_cache/
+
+# ============================================================================
+# IDE & EDITORS
+# ============================================================================
+
+# VSCode
+.vscode/
+*.code-workspace
+
+# PyCharm
+.idea/
+*.iml
+*.iws
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+
+# ============================================================================
+# OPERATING SYSTEM
+# ============================================================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+
+# ============================================================================
+# TEMPORARY & BACKUP FILES
+# ============================================================================
+
+# Backup files
+*.bak
+*.backup
+*.old
+*.orig
+
+# Temporary files
+*.tmp
+*.temp
+
+# ============================================================================
+# PROJECT SPECIFIC
+# ============================================================================
+
+# Test artifacts
+.pytest_tmp/
+test_outputs/
+
+# Development notes
+NOTES.md
+TODO.md
+SCRATCH.md
+
+# Local configuration overrides
+local_config.yaml
+local_settings.yaml
+
+# Database files (if any)
+*.db
+*.sqlite
+
+# Keep important empty directories
+!.gitkeep
