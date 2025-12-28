@@ -1,0 +1,107 @@
+{
+  "3": {
+    "inputs": {
+      "seed": 274968554612758,
+      "steps": 25,
+      "cfg": 6,
+      "sampler_name": "dpmpp_2m",
+      "scheduler": "ddim_uniform",
+      "denoise": 1,
+      "model": [
+        "4",
+        0
+      ],
+      "positive": [
+        "6",
+        0
+      ],
+      "negative": [
+        "7",
+        0
+      ],
+      "latent_image": [
+        "5",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "4": {
+    "inputs": {
+      "ckpt_name": "midnight_v50.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "Load Checkpoint"
+    }
+  },
+  "5": {
+    "inputs": {
+      "width": 1200,
+      "height": 400,
+      "batch_size": 6
+    },
+    "class_type": "EmptyLatentImage",
+    "_meta": {
+      "title": "Empty Latent Image"
+    }
+  },
+  "6": {
+    "inputs": {
+      "text": "(A cinematic capture of)\nA pair of large, rusted shackles:1.4 hanging from an ancient stone pillar:1.3, their chains twisted and broken, remnants of Keishing’s captivity:1.2. Nearby, a scarlet feather:1.2 lies on the cold, damp stone floor, and a tribal necklace:1.3 of bone and stone is partially torn, scattered beside the shackle. The shadowed silhouette of a dimly lit doorway:1.0 looms in the background, leading deeper into the dark recesses of the Scarlet Monastery:1.3. The faintest traces of moonlight:0.8 filter through cracks in the stone, casting eerie light on the broken chains and abandoned artifacts, emphasizing the lost identity of the warrior.\nHigh-detail oil painting, deep contrasts between the worn stone and cold metal, with rich crimson hues reflecting the scarlet of the feather, an atmosphere of stillness and hopelessness, evoking a sense of loss and silent suffering.\n\n(World of Warcraft cinematic style, cinematicpainting, oil painting, greg rutkowski)",
+      "clip": [
+        "4",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "7": {
+    "inputs": {
+      "text": "text, watermark",
+      "clip": [
+        "4",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "8": {
+    "inputs": {
+      "samples": [
+        "3",
+        0
+      ],
+      "vae": [
+        "4",
+        2
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "9": {
+    "inputs": {
+      "filename_prefix": "wow/banner",
+      "images": [
+        "8",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  }
+}

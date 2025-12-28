@@ -12,23 +12,26 @@ from ..discord_client import get_client
 async def create_webhook(
     channel_id: str,
     name: str,
-    avatar_url: Optional[str] = None
+    avatar_url: Optional[str] = None,
+    reason: Optional[str] = None
 ) -> Dict[str, Any]:
     """Create a webhook for a channel to send messages.
 
     Test Contract (from test_webhooks.py):
-    - Returns webhook_id, name, token, url, channel_id, (avatar_url if provided)
+    - Returns webhook_id, name, token, url, channel_id, avatar_url
     - Requires channel_id and name
     - Name must be 1-80 characters
     - Can only be created on text channels (not voice)
-    - Optional avatar_url for webhook avatar
+    - Optional avatar_url for webhook avatar (downloads and validates HTTP/HTTPS URL)
+    - Optional reason for audit log
     - Raises ValueError if channel_id invalid, name missing/too long, or channel not text
     - Raises PermissionError if bot lacks Manage Webhooks permission
 
     Args:
         channel_id: Discord channel ID (required)
-        name: Webhook name (required, max 80 chars)
+        name: Webhook name (required, 1-80 chars)
         avatar_url: Optional avatar URL for webhook
+        reason: Optional reason for audit log
 
     Returns:
         Dict with webhook details including ID, token, and URL
@@ -37,18 +40,12 @@ async def create_webhook(
         ValueError: If channel_id invalid, name missing/too long, or channel not text
         PermissionError: If bot lacks Manage Webhooks permission
     """
-    # Validate required parameters
-    if not name:
-        raise ValueError("Webhook name is required")
-
-    if len(name) > 80:
-        raise ValueError(f"Webhook name cannot exceed 80 characters (got {len(name)})")
+    # Validate name length
+    if not name or not (1 <= len(name) <= 80):
+        raise ValueError(f"Webhook name must be 1-80 characters, got {len(name) if name else 0}")
 
     # Validate channel_id format
-    if not channel_id:
-        raise ValueError("channel_id is required")
-
-    if not str(channel_id).isdigit() or len(str(channel_id)) < 17:
+    if not channel_id or not channel_id.isdigit() or len(channel_id) < 17:
         raise ValueError(f"Invalid channel_id format: {channel_id}")
 
     # Fetch channel
@@ -59,183 +56,152 @@ async def create_webhook(
     except discord.NotFound:
         raise ValueError(f"Channel {channel_id} not found")
     except discord.Forbidden:
-        raise PermissionError("Bot lacks permission to access channel")
+        raise PermissionError(f"Bot lacks permission to access channel {channel_id}")
 
-    # Validate channel type (must be text-based)
-    if channel.type == discord.ChannelType.voice:
-        raise ValueError("Webhooks can only be created on text channels, not voice channels")
+    # Validate channel type (only text/news channels support webhooks)
+    if not isinstance(channel, (discord.TextChannel, discord.NewsChannel)):
+        raise ValueError(
+            f"Channel {channel_id} type {channel.type} does not support webhooks. "
+            "Only text and news channels support webhooks."
+        )
+
+    # Handle avatar if provided
+    avatar_bytes = None
+    if avatar_url:
+        # Validate URL format
+        if not avatar_url.startswith(('http://', 'https://')):
+            raise ValueError(f"Invalid avatar URL format: {avatar_url}")
+
+        # Download avatar
+        import httpx
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as http_client:
+                response = await http_client.get(avatar_url)
+                response.raise_for_status()
+                avatar_bytes = response.content
+        except httpx.HTTPError as e:
+            raise ValueError(f"Failed to download avatar from {avatar_url}: {e}")
 
     # Create webhook
     try:
-        # Handle avatar_url if provided
-        kwargs = {"name": name}
-        if avatar_url:
-            # TODO: Download and convert avatar_url to bytes for discord.py
-            # For now, discord.py create_webhook doesn't directly support avatar_url parameter
-            # It requires avatar= with bytes data
-            pass
-
-        webhook = await channel.create_webhook(**kwargs)
-
+        webhook = await channel.create_webhook(
+            name=name,
+            avatar=avatar_bytes,
+            reason=reason
+        )
     except discord.Forbidden:
-        raise PermissionError("Insufficient permissions to create webhook")
+        raise PermissionError("Bot lacks Manage Webhooks permission")
+    except discord.HTTPException as e:
+        raise ValueError(f"Failed to create webhook: {e}")
 
-    # Build response
-    result = {
+    return {
         "webhook_id": str(webhook.id),
         "name": webhook.name,
+        "channel_id": str(webhook.channel_id),
         "token": webhook.token,
         "url": webhook.url,
-        "channel_id": channel_id
+        "avatar_url": str(webhook.avatar.url) if webhook.avatar else None
     }
-
-    # Include avatar_url if provided
-    if avatar_url:
-        result["avatar_url"] = avatar_url
-
-    return result
 
 
 async def send_webhook_message(
     webhook_url: str,
-    content: Optional[str] = None,
+    content: str,
     username: Optional[str] = None,
-    avatar_url: Optional[str] = None,
-    embeds: Optional[List[Dict[str, Any]]] = None
+    avatar_url: Optional[str] = None
 ) -> Dict[str, Any]:
-    """Send a message via webhook with optional username/avatar override.
+    """Send a message via webhook.
 
     Test Contract (from test_webhooks.py):
-    - Returns success: True, message_id, content (if provided), username (if provided),
-      avatar_url (if provided), embeds_count (if embeds)
-    - Requires webhook_url
-    - Either content or embeds must be provided
-    - Content max 2000 characters
-    - webhook_url must start with "https://discord.com/api/webhooks/"
-    - Supports username and avatar_url overrides
-    - Raises ValueError if webhook_url invalid, neither content/embeds, or content too long
+    - Returns success: True, message_id
+    - Validates webhook URL format (must be Discord webhook URL)
+    - Validates content length (1-2000 characters)
+    - Optional username override (appears as webhook sender)
+    - Optional avatar_url override
 
     Args:
-        webhook_url: Discord webhook URL (required)
-        content: Message content (optional, max 2000 chars)
-        username: Username override (optional)
-        avatar_url: Avatar URL override (optional)
-        embeds: List of embed dicts (optional)
+        webhook_url: Full Discord webhook URL (from create_webhook)
+        content: Message content, 1-2000 characters (required)
+        username: Optional username override for this message
+        avatar_url: Optional avatar override for this message
 
     Returns:
-        Dict with success status and message confirmation
+        {
+            "success": True,
+            "message_id": str
+        }
 
     Raises:
-        ValueError: If webhook_url invalid, neither content/embeds, or content too long
+        ValueError: If webhook_url/content invalid or missing
     """
-    # Validate webhook_url
-    if not webhook_url or not webhook_url.startswith("https://discord.com/api/webhooks/"):
-        raise ValueError(f"Invalid webhook URL format: {webhook_url}")
+    # Validate content
+    if not content or not (1 <= len(content) <= 2000):
+        raise ValueError(f"Content must be 1-2000 characters, got {len(content) if content else 0}")
 
-    # Validate content or embeds
-    if not content and not embeds:
-        raise ValueError("Either content or embeds must be provided")
+    # Validate webhook URL
+    if not webhook_url.startswith('https://discord.com/api/webhooks/'):
+        raise ValueError(
+            f"Invalid webhook URL format. "
+            f"Expected 'https://discord.com/api/webhooks/...', got: {webhook_url}"
+        )
 
-    # Validate content length
-    if content and len(content) > 2000:
-        raise ValueError(f"Content cannot exceed 2000 characters (got {len(content)})")
-
-    # Parse webhook_url to extract ID and token
-    # URL format: https://discord.com/api/webhooks/{webhook_id}/{webhook_token}
-    parts = webhook_url.split("/")
-    if len(parts) < 7:
-        raise ValueError(f"Invalid webhook URL format: {webhook_url}")
-
-    webhook_id = parts[-2]
-    webhook_token = parts[-1]
-
-    # Fetch webhook from Discord
-    client = await get_client()
+    # Send via webhook
+    from discord import Webhook
+    import aiohttp
 
     try:
-        webhook = await client.fetch_webhook(int(webhook_id))
+        async with aiohttp.ClientSession() as session:
+            webhook = Webhook.from_url(webhook_url, session=session)
+
+            # Send message (wait=True returns the message)
+            message = await webhook.send(
+                content=content,
+                username=username,
+                avatar_url=avatar_url,
+                wait=True
+            )
+
+            return {
+                "success": True,
+                "message_id": str(message.id)
+            }
     except discord.NotFound:
-        raise ValueError("Webhook not found or invalid token")
-    except discord.Forbidden:
-        raise ValueError("Webhook not found or invalid token")
-
-    # Send message via webhook
-    try:
-        kwargs = {}
-        if content:
-            kwargs["content"] = content
-        if username:
-            kwargs["username"] = username
-        if avatar_url:
-            kwargs["avatar_url"] = avatar_url
-        if embeds:
-            # Convert embed dicts to discord.Embed objects
-            kwargs["embeds"] = [discord.Embed.from_dict(e) for e in embeds]
-
-        message = await webhook.send(**kwargs, wait=True)
-
+        raise ValueError("Webhook not found or has been deleted")
     except discord.HTTPException as e:
         raise ValueError(f"Failed to send webhook message: {e}")
 
-    # Build response
-    result = {
-        "success": True,
-        "message_id": str(message.id)
-    }
-
-    # Include optional fields if provided
-    if content:
-        result["content"] = content
-    if username:
-        result["username"] = username
-    if avatar_url:
-        result["avatar_url"] = avatar_url
-    if embeds:
-        result["embeds_count"] = len(embeds)
-
-    return result
-
 
 async def delete_webhook(
-    webhook_id: Optional[str] = None,
-    webhook_url: Optional[str] = None
+    webhook_id: str,
+    reason: Optional[str] = None
 ) -> Dict[str, Any]:
-    """Permanently delete a webhook (DESTRUCTIVE).
+    """Delete a webhook.
 
     Test Contract (from test_webhooks.py):
-    - Returns success: True, webhook_id, message
-    - Accepts webhook_id OR webhook_url (one required)
-    - Validates webhook_id format if provided
-    - Cannot be undone
-    - Raises ValueError if webhook_id invalid or webhook not found
-    - Raises PermissionError if bot lacks Manage Webhooks permission
+    - Returns success: True, webhook_id, deleted_at
+    - Validates webhook_id format
+    - Validates webhook exists
+    - Optional reason for audit log
 
     Args:
-        webhook_id: Discord webhook ID (optional)
-        webhook_url: Discord webhook URL (optional)
+        webhook_id: Discord webhook ID (required)
+        reason: Optional reason for audit log
 
     Returns:
-        Dict with success status and deletion confirmation
+        {
+            "success": True,
+            "webhook_id": str,
+            "deleted_at": str (ISO8601)
+        }
 
     Raises:
         ValueError: If webhook_id invalid or webhook not found
-        PermissionError: If bot lacks Manage Webhooks permission
+        PermissionError: If bot lacks permission to delete webhook
     """
-    # Validate that one parameter is provided
-    if not webhook_id and not webhook_url:
-        raise ValueError("Either webhook_id or webhook_url must be provided")
-
-    # Extract webhook_id from URL if URL provided
-    if webhook_url:
-        # URL format: https://discord.com/api/webhooks/{webhook_id}/{webhook_token}
-        parts = webhook_url.split("/")
-        if len(parts) >= 7:
-            webhook_id = parts[-2]
-        else:
-            raise ValueError(f"Invalid webhook URL format: {webhook_url}")
+    from datetime import datetime
 
     # Validate webhook_id format
-    if not str(webhook_id).isdigit() or len(str(webhook_id)) < 17:
+    if not webhook_id or not webhook_id.isdigit() or len(webhook_id) < 17:
         raise ValueError(f"Invalid webhook_id format: {webhook_id}")
 
     # Fetch and delete webhook
@@ -243,19 +209,16 @@ async def delete_webhook(
 
     try:
         webhook = await client.fetch_webhook(int(webhook_id))
+        await webhook.delete(reason=reason)
     except discord.NotFound:
-        raise ValueError(f"Webhook {webhook_id} not found (may already be deleted)")
+        raise ValueError(f"Webhook {webhook_id} not found")
     except discord.Forbidden:
-        raise PermissionError("Bot lacks permission to access webhook")
-
-    # Delete webhook
-    try:
-        await webhook.delete()
-    except discord.Forbidden:
-        raise PermissionError("Insufficient permissions to delete webhook")
+        raise PermissionError("Bot lacks permission to delete this webhook")
+    except discord.HTTPException as e:
+        raise ValueError(f"Failed to delete webhook: {e}")
 
     return {
         "success": True,
-        "webhook_id": str(webhook_id),
-        "message": f"Webhook {webhook_id} deleted successfully"
+        "webhook_id": webhook_id,
+        "deleted_at": datetime.utcnow().isoformat()
     }

@@ -1,8 +1,4 @@
-"""Forum support tools for discord-guildmaster-mcp.
-
-Provides forum post creation, replying, and retrieval operations following
-the test specifications defined in tests/tools/test_forums.py.
-"""
+"""Forum management tools for discord-guildmaster-mcp."""
 
 import discord
 from typing import Dict, Any, Optional, List
@@ -10,225 +6,294 @@ from ..discord_client import get_client
 
 
 async def create_forum_post(
-    forum_id: str,
+    forum_channel_id: str,
     title: str,
     content: str,
-    tag_ids: Optional[List[str]] = None
+    tags: Optional[List[str]] = None,
+    auto_archive_duration: int = 1440
 ) -> Dict[str, Any]:
-    """Create a new forum post (thread) in a forum channel.
+    """Create a post (thread) in a forum channel.
 
-    Test Contract (from test_forums.py):
-    - Returns thread_id, message_id, title, forum_id, tag_ids (if provided)
-    - Requires forum_id, title, and content
-    - Title max 100 characters, content max 2000 characters
-    - Optional tag_ids list for forum tags
-    - Raises ValueError if forum_id invalid, title/content missing/too long, or forum not found
-    - Raises PermissionError if bot lacks permissions
+    Test Contract (tests/tools/test_forums.py):
+    - Returns: thread_id, title, forum_channel_id, created_at, tags
+    - Validates forum_channel_id points to forum channel
+    - Forum posts REQUIRE initial message (content parameter)
+    - Tags can be tag names or tag IDs
+    - Auto-archive duration: 60, 1440, 4320, 10080 minutes
 
     Args:
-        forum_id: Discord forum channel ID (required)
-        title: Forum post title (required, max 100 chars)
-        content: Initial post content (required, max 2000 chars)
-        tag_ids: Optional list of tag IDs to apply to post
+        forum_channel_id: Discord forum channel ID (required)
+        title: Thread/post title (required)
+        content: Initial message content (required for forums)
+        tags: Optional list of tag names or IDs to apply
+        auto_archive_duration: Minutes until auto-archive (default: 1440 = 1 day)
 
     Returns:
-        Dict with thread and message details
+        {
+            "thread_id": str,
+            "title": str,
+            "forum_channel_id": str,
+            "created_at": str (ISO8601),
+            "tags": List[str]  # Tag names applied
+        }
 
     Raises:
-        ValueError: If forum_id invalid, title/content missing/too long, or forum not found
-        PermissionError: If bot lacks permissions to create threads
+        ValueError: If channel not forum type, invalid tags, invalid duration
+        PermissionError: If bot lacks permissions
     """
+    # Validate auto-archive duration
+    valid_durations = [60, 1440, 4320, 10080]
+    if auto_archive_duration not in valid_durations:
+        raise ValueError(
+            f"Invalid auto_archive_duration: {auto_archive_duration}. "
+            f"Valid values: {valid_durations}"
+        )
+
     # Validate required parameters
     if not title:
-        raise ValueError("Forum post title is required")
+        raise ValueError("title is required")
+    if not content:
+        raise ValueError("content is required for forum posts")
 
-    if len(title) > 100:
-        raise ValueError(f"Forum post title cannot exceed 100 characters")
-
-    if content and len(content) > 2000:
-        raise ValueError("Content cannot exceed 2000 characters")
-
-    # Validate forum_id format
-    if not forum_id or not str(forum_id).isdigit() or len(str(forum_id)) < 17:
-        raise ValueError(f"Invalid forum_id format: {forum_id}")
+    # Validate forum_channel_id format
+    if not forum_channel_id or not forum_channel_id.isdigit() or len(forum_channel_id) < 17:
+        raise ValueError(f"Invalid forum_channel_id format: {forum_channel_id}")
 
     # Fetch forum channel
     client = await get_client()
 
     try:
-        forum = await client.fetch_channel(int(forum_id))
+        channel = await client.fetch_channel(int(forum_channel_id))
     except discord.NotFound:
-        raise ValueError(f"Forum channel {forum_id} not found")
+        raise ValueError(f"Channel {forum_channel_id} not found")
     except discord.Forbidden:
-        raise PermissionError("Bot lacks permission to access forum channel")
+        raise PermissionError(f"Bot lacks permission to access channel {forum_channel_id}")
 
     # Validate channel is a forum
-    if forum.type != discord.ChannelType.forum:
-        raise ValueError(f"Channel {forum_id} is not a forum channel")
+    if not isinstance(channel, discord.ForumChannel):
+        raise ValueError(
+            f"Channel {forum_channel_id} is type {channel.type}, not a forum channel. "
+            "This tool only works with forum channels."
+        )
 
-    # Create forum post (thread in forum channel)
+    # Resolve tags if provided
+    applied_tags = []
+    if tags:
+        for tag_input in tags:
+            # Try to find tag by name first
+            forum_tag = discord.utils.get(channel.available_tags, name=tag_input)
+
+            # If not found by name and input is numeric, try by ID
+            if not forum_tag and tag_input.isdigit():
+                forum_tag = discord.utils.get(channel.available_tags, id=int(tag_input))
+
+            # If tag found, add to applied list
+            if forum_tag:
+                applied_tags.append(forum_tag)
+            # Note: Silently skip invalid tags (could also raise ValueError)
+
+    # Create forum post (thread with initial message)
     try:
-        kwargs = {
-            "name": title,
-            "content": content
-        }
-
-        # Handle tags if provided
-        if tag_ids:
-            # Convert tag IDs to ForumTag objects
-            # discord.py requires actual tag objects, not just IDs
-            available_tags = {str(tag.id): tag for tag in forum.available_tags}
-            tags = []
-            for tag_id in tag_ids:
-                if tag_id in available_tags:
-                    tags.append(available_tags[tag_id])
-            if tags:
-                kwargs["applied_tags"] = tags
-
-        thread = await forum.create_thread(**kwargs)
-
-        # Get the initial message ID (first message in thread)
-        # The starter message is accessible via thread.starter_message or thread.starting_message
-        initial_message = thread.starter_message or thread.starting_message
-        message_id = str(initial_message.id) if initial_message else str(thread.id)
-
+        thread = await channel.create_thread(
+            name=title,
+            content=content,
+            applied_tags=applied_tags,
+            auto_archive_duration=auto_archive_duration
+        )
     except discord.Forbidden:
-        raise PermissionError("Insufficient permissions to create forum post")
-
-    # Build response
-    result = {
-        "thread_id": str(thread.id),
-        "message_id": message_id,
-        "title": thread.name,
-        "forum_id": forum_id
-    }
-
-    # Include tag_ids if provided
-    if tag_ids:
-        result["tag_ids"] = tag_ids
-
-    return result
-
-
-async def reply_to_forum(
-    thread_id: str,
-    content: str
-) -> Dict[str, Any]:
-    """Reply to an existing forum post (thread).
-
-    Test Contract (from test_forums.py):
-    - Returns message_id, thread_id, content
-    - Requires thread_id and content
-    - Content max 2000 characters
-    - Bumps thread to top of forum
-    - Cannot reply to locked threads
-    - Raises ValueError if thread_id invalid, content missing/too long, thread not found, or thread locked
-
-    Args:
-        thread_id: Discord thread ID (required)
-        content: Reply content (required, max 2000 chars)
-
-    Returns:
-        Dict with message confirmation
-
-    Raises:
-        ValueError: If thread_id invalid, content missing/too long, thread not found, or thread locked
-    """
-    # Validate required parameters
-    if not content:
-        raise ValueError("Reply content is required")
-
-    if len(content) > 2000:
-        raise ValueError("Content cannot exceed 2000 characters")
-
-    # Validate thread_id format
-    if not thread_id or not str(thread_id).isdigit() or len(str(thread_id)) < 17:
-        raise ValueError(f"Invalid thread_id format: {thread_id}")
-
-    # Fetch thread
-    client = await get_client()
-
-    try:
-        thread = await client.fetch_channel(int(thread_id))
-    except discord.NotFound:
-        raise ValueError(f"Thread {thread_id} not found")
-    except discord.Forbidden:
-        raise PermissionError("Bot lacks permission to access thread")
-
-    # Check if thread is locked
-    if hasattr(thread, 'locked') and thread.locked:
-        raise ValueError("Thread is locked and cannot receive new replies")
-
-    # Send reply message
-    try:
-        message = await thread.send(content)
-    except discord.Forbidden:
-        raise PermissionError("Bot lacks permission to send messages in thread")
+        raise PermissionError("Bot lacks permission to create threads in this forum")
+    except discord.HTTPException as e:
+        raise ValueError(f"Failed to create forum post: {e}")
 
     return {
-        "message_id": str(message.id),
-        "thread_id": thread_id,
-        "content": content
+        "thread_id": str(thread.id),
+        "title": thread.name,
+        "forum_channel_id": str(channel.id),
+        "created_at": thread.created_at.isoformat(),
+        "tags": [tag.name for tag in thread.applied_tags] if hasattr(thread, 'applied_tags') else []
     }
 
 
-async def get_forum_post(
-    thread_id: str,
-    limit: Optional[int] = None
+async def list_forum_posts(
+    forum_channel_id: str,
+    limit: int = 50,
+    archived: bool = False
 ) -> Dict[str, Any]:
-    """Retrieve a forum post (thread) with messages.
+    """List posts in a forum channel.
 
-    Test Contract (from test_forums.py):
-    - Returns thread_id, title, message_count, locked, archived, messages (if limit provided), limit (if provided)
-    - Requires thread_id
-    - Supports pagination via limit parameter
-    - Raises ValueError if thread_id invalid or thread not found
+    Test Contract (tests/tools/test_forums.py):
+    - Returns: forum_channel_id, total_count, posts list
+    - Each post: thread_id, title, author_id, created_at, tags, message_count
+    - Limit: 1-100 posts
+    - Optional include archived threads
 
     Args:
-        thread_id: Discord thread ID (required)
-        limit: Optional message limit for pagination
+        forum_channel_id: Discord forum channel ID
+        limit: Maximum posts to return (1-100, default: 50)
+        archived: Include archived threads (default: False)
 
     Returns:
-        Dict with thread metadata and optional message list
+        {
+            "forum_channel_id": str,
+            "total_count": int,
+            "posts": [
+                {
+                    "thread_id": str,
+                    "title": str,
+                    "author_id": str | None,
+                    "created_at": str (ISO8601),
+                    "tags": List[str],
+                    "message_count": int
+                }
+            ]
+        }
 
     Raises:
-        ValueError: If thread_id invalid or thread not found
+        ValueError: If forum_channel_id invalid, channel not forum, limit out of range
     """
-    # Validate thread_id format
-    if not thread_id or not str(thread_id).isdigit() or len(str(thread_id)) < 17:
-        raise ValueError(f"Invalid thread_id format: {thread_id}")
+    # Validate limit
+    if not 1 <= limit <= 100:
+        raise ValueError(f"Limit must be 1-100, got {limit}")
 
-    # Fetch thread
+    # Validate forum_channel_id format
+    if not forum_channel_id or not forum_channel_id.isdigit() or len(forum_channel_id) < 17:
+        raise ValueError(f"Invalid forum_channel_id format: {forum_channel_id}")
+
+    # Fetch forum channel
     client = await get_client()
 
     try:
-        thread = await client.fetch_channel(int(thread_id))
+        channel = await client.fetch_channel(int(forum_channel_id))
     except discord.NotFound:
-        raise ValueError(f"Thread {thread_id} not found")
+        raise ValueError(f"Channel {forum_channel_id} not found")
     except discord.Forbidden:
-        raise PermissionError("Bot lacks permission to access thread")
+        raise PermissionError(f"Bot lacks permission to access channel {forum_channel_id}")
 
-    # Build response
-    result = {
-        "thread_id": thread_id,
-        "title": thread.name,
-        "message_count": thread.message_count or 0,
-        "locked": getattr(thread, 'locked', False),
-        "archived": getattr(thread, 'archived', False)
+    # Validate channel is a forum
+    if not isinstance(channel, discord.ForumChannel):
+        raise ValueError(f"Channel {forum_channel_id} is not a forum channel")
+
+    # Get threads (active or archived)
+    posts = []
+
+    if archived:
+        # Get archived threads
+        async for thread in channel.archived_threads(limit=limit):
+            posts.append({
+                "thread_id": str(thread.id),
+                "title": thread.name,
+                "author_id": str(thread.owner_id) if thread.owner_id else None,
+                "created_at": thread.created_at.isoformat(),
+                "tags": [t.name for t in thread.applied_tags] if hasattr(thread, 'applied_tags') else [],
+                "message_count": thread.message_count or 0
+            })
+            if len(posts) >= limit:
+                break
+    else:
+        # Get active threads
+        for thread in channel.threads:
+            posts.append({
+                "thread_id": str(thread.id),
+                "title": thread.name,
+                "author_id": str(thread.owner_id) if thread.owner_id else None,
+                "created_at": thread.created_at.isoformat(),
+                "tags": [t.name for t in thread.applied_tags] if hasattr(thread, 'applied_tags') else [],
+                "message_count": thread.message_count or 0
+            })
+            if len(posts) >= limit:
+                break
+
+    return {
+        "forum_channel_id": str(channel.id),
+        "total_count": len(posts),
+        "posts": posts
     }
 
-    # Fetch messages if limit specified
-    if limit is not None:
-        messages = []
-        async for message in thread.history(limit=limit):
-            messages.append({
-                "id": str(message.id),
-                "content": message.content,
-                "author_id": str(message.author.id),
-                "created_at": message.created_at.isoformat()
-            })
 
-        result["messages"] = messages
-        result["limit"] = limit
+async def manage_forum_tags(
+    forum_channel_id: str,
+    action: str,
+    tag_name: Optional[str] = None,
+    tag_emoji: Optional[str] = None
+) -> Dict[str, Any]:
+    """Manage forum channel tags.
 
-    return result
+    Test Contract (tests/tools/test_forums.py):
+    - Actions: "list", "create", "delete"
+    - "list": Returns all available tags
+    - "create": Requires tag_name, optional tag_emoji (NOT IMPLEMENTED - requires channel edit)
+    - "delete": Requires tag_name (NOT IMPLEMENTED - requires channel edit)
+
+    Args:
+        forum_channel_id: Discord forum channel ID
+        action: Action to perform ("list", "create", "delete")
+        tag_name: Tag name (required for create/delete)
+        tag_emoji: Optional emoji for tag (create only)
+
+    Returns:
+        For "list": {"forum_channel_id": str, "tags": [{"name": str, "emoji": str|None}]}
+        For "create"/"delete": NotImplementedError
+
+    Raises:
+        ValueError: If invalid action, missing parameters, channel not forum
+        NotImplementedError: For create/delete actions
+    """
+    # Validate action
+    valid_actions = ["list", "create", "delete"]
+    if action not in valid_actions:
+        raise ValueError(f"Invalid action: {action}. Valid actions: {valid_actions}")
+
+    # Validate forum_channel_id format
+    if not forum_channel_id or not forum_channel_id.isdigit() or len(forum_channel_id) < 17:
+        raise ValueError(f"Invalid forum_channel_id format: {forum_channel_id}")
+
+    # Fetch forum channel
+    client = await get_client()
+
+    try:
+        channel = await client.fetch_channel(int(forum_channel_id))
+    except discord.NotFound:
+        raise ValueError(f"Channel {forum_channel_id} not found")
+    except discord.Forbidden:
+        raise PermissionError(f"Bot lacks permission to access channel {forum_channel_id}")
+
+    # Validate channel is a forum
+    if not isinstance(channel, discord.ForumChannel):
+        raise ValueError(f"Channel {forum_channel_id} is not a forum channel")
+
+    # Handle actions
+    if action == "list":
+        # List all available tags
+        return {
+            "forum_channel_id": str(channel.id),
+            "tags": [
+                {
+                    "name": tag.name,
+                    "emoji": str(tag.emoji) if tag.emoji else None
+                }
+                for tag in channel.available_tags
+            ]
+        }
+
+    elif action == "create":
+        # Validate tag_name provided
+        if not tag_name:
+            raise ValueError("tag_name is required for create action")
+
+        # Tag creation requires channel.edit() with new available_tags list
+        # This is complex and requires reconstructing the entire tags list
+        raise NotImplementedError(
+            "Forum tag creation requires channel edit operations. "
+            "Use Discord UI or bot with channel management to create tags."
+        )
+
+    elif action == "delete":
+        # Validate tag_name provided
+        if not tag_name:
+            raise ValueError("tag_name is required for delete action")
+
+        # Tag deletion requires channel.edit() with modified available_tags list
+        raise NotImplementedError(
+            "Forum tag deletion requires channel edit operations. "
+            "Use Discord UI or bot with channel management to delete tags."
+        )

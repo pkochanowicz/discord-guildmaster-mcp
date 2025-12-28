@@ -1,0 +1,222 @@
+{
+  "3": {
+    "inputs": {
+      "seed": 316311801448619,
+      "steps": 50,
+      "cfg": 4,
+      "sampler_name": "dpmpp_3m_sde_gpu",
+      "scheduler": "sgm_uniform",
+      "denoise": 1,
+      "model": [
+        "21",
+        0
+      ],
+      "positive": [
+        "6",
+        0
+      ],
+      "negative": [
+        "7",
+        0
+      ],
+      "latent_image": [
+        "16",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "4": {
+    "inputs": {
+      "ckpt_name": "midnight_v50.safetensors"
+    },
+    "class_type": "CheckpointLoaderSimple",
+    "_meta": {
+      "title": "Load Checkpoint"
+    }
+  },
+  "6": {
+    "inputs": {
+      "text": "An abstract oil painting evoking the primal bond between the four elements. A worn stone ring at the center, half-buried in red Durotar soil, with delicate streams of wind, flame, water, and earth circling it like a ritual dance. The sky glows with warm twilight tones — soft orange, storm-gray, and dusky blue. Faint echoes of ancient orcish runes etched into scattered stones. The air feels ancient and listening. A totem lies unraised, wrapped in leather and feathers, waiting. Spiritual, poetic, grounded in natural symbolism, World of Warcraft tribal atmosphere.”",
+      "clip": [
+        "21",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "7": {
+    "inputs": {
+      "text": "person, male, characters, fantasy creatures, modern elements, clutter, high-tech, buildings, text, futuristic themes, anime, digital effects",
+      "clip": [
+        "21",
+        1
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "8": {
+    "inputs": {
+      "samples": [
+        "3",
+        0
+      ],
+      "vae": [
+        "4",
+        2
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "9": {
+    "inputs": {
+      "filename_prefix": "warcraft/duvajin",
+      "images": [
+        "8",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "10": {
+    "inputs": {
+      "lora_name": "Psychedelic Vibes - Trigger with Psychvibes Artstyle.safetensors",
+      "strength_model": 0.44,
+      "strength_clip": 0.44,
+      "model": [
+        "4",
+        0
+      ],
+      "clip": [
+        "4",
+        1
+      ]
+    },
+    "class_type": "LoraLoader",
+    "_meta": {
+      "title": "Load LoRA"
+    }
+  },
+  "11": {
+    "inputs": {
+      "lora_name": "PainterlyComicStyle-V2-30.safetensors",
+      "strength_model": 0.11,
+      "strength_clip": 0.11,
+      "model": [
+        "15",
+        0
+      ],
+      "clip": [
+        "15",
+        1
+      ]
+    },
+    "class_type": "LoraLoader",
+    "_meta": {
+      "title": "Load LoRA"
+    }
+  },
+  "13": {
+    "inputs": {
+      "lora_name": "xl_yamer_style-3.0.safetensors",
+      "strength_model": 0.33,
+      "strength_clip": 0.33,
+      "model": [
+        "14",
+        0
+      ],
+      "clip": [
+        "14",
+        1
+      ]
+    },
+    "class_type": "LoraLoader",
+    "_meta": {
+      "title": "Load LoRA"
+    }
+  },
+  "14": {
+    "inputs": {
+      "lora_name": "DFunk_SDXL.safetensors",
+      "strength_model": 0.36,
+      "strength_clip": 0.36,
+      "model": [
+        "11",
+        0
+      ],
+      "clip": [
+        "11",
+        1
+      ]
+    },
+    "class_type": "LoraLoader",
+    "_meta": {
+      "title": "Load LoRA"
+    }
+  },
+  "15": {
+    "inputs": {
+      "lora_name": "SDXLHighDetail_v5.safetensors",
+      "strength_model": -1.44,
+      "strength_clip": -1.44,
+      "model": [
+        "10",
+        0
+      ],
+      "clip": [
+        "10",
+        1
+      ]
+    },
+    "class_type": "LoraLoader",
+    "_meta": {
+      "title": "Load LoRA"
+    }
+  },
+  "16": {
+    "inputs": {
+      "mode": "Square",
+      "resolution": "1:1 (1024x1024)",
+      "scale_factor": 0.5,
+      "batch_size": 4
+    },
+    "class_type": "PaintingCoder::ImageLatentCreator",
+    "_meta": {
+      "title": "Image Latent Creator 🎨"
+    }
+  },
+  "21": {
+    "inputs": {
+      "lora_name": "IconsRedmondV2-Icons.safetensors",
+      "strength_model": 1,
+      "strength_clip": 1,
+      "model": [
+        "13",
+        0
+      ],
+      "clip": [
+        "13",
+        1
+      ]
+    },
+    "class_type": "LoraLoader",
+    "_meta": {
+      "title": "Load LoRA"
+    }
+  }
+}
